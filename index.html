@@ -143,21 +143,6 @@
 </div>
 
 <script>
-function parseProducts(str) {
-  const raw = str.split(",").map(p=>p.trim()).filter(Boolean);
-  const result = [];
-  for (let i = 0; i < raw.length; i++) {
-    let cur = raw[i];
-    // "Come On"으로 끝나면 → 다음 토큰(Everyone 1WB 등)과 합치기
-    // 합친 결과도 또 "Come On"이면 계속 합치기 (연속 시리즈 대비)
-    while (/come\s+on$/i.test(cur) && i+1 < raw.length) {
-      cur = cur + ", " + raw[++i];
-    }
-    result.push(cur);
-  }
-  return result;
-}
-
 const JOIN_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjMaqcQHHy-Si7uKHPqGfLnrvLSPNzqTWRYXf60bPqX6zjkSiGnVuWijN9moknW0pEfS/pub?gid=0&single=true&output=csv";
 const PUR_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjMaqcQHHy-Si7uKHPqGfLnrvLSPNzqTWRYXf60bPqX6zjkSiGnVuWijN9moknW0pEfS/pub?gid=1469334619&single=true&output=csv";
 
@@ -178,6 +163,19 @@ function parseCSV(txt) {
     headers.forEach((h,i)=>obj[h]=(cols[i]||"").replace(/"/g,""));
     return obj;
   });
+}
+
+function parseProducts(str) {
+  const raw = str.split(",").map(p => p.trim()).filter(Boolean);
+  const result = [];
+  for (let i = 0; i < raw.length; i++) {
+    let cur = raw[i];
+    while (/come\s+on$/i.test(cur) && i + 1 < raw.length) {
+      cur = cur + ", " + raw[++i];
+    }
+    result.push(cur);
+  }
+  return result;
 }
 
 function getMonth(d) { const m=d.match(/\d{4}[\.\-]\s*(\d{1,2})/); return m?parseInt(m[1]):null; }
@@ -220,7 +218,8 @@ async function init() {
         if(!purMemByMonth[mo]) purMemByMonth[mo]=new Set();
         purMemByMonth[mo].add(mid);
         if(!memberPur[mid]) memberPur[mid]={count:0,amount:0,name:r["이름"]||""};
-        memberPur[mid].count++; memberPur[mid].amount+=amt;
+        memberPur[mid].count++;
+        memberPur[mid].amount+=amt;
       }
       parseProducts(r["상품명"]||"").forEach(p=>{
         productCount[p]=(productCount[p]||0)+1;
@@ -275,11 +274,6 @@ async function init() {
 
     // 탭4
     const top30=Object.entries(productCount).sort((a,b)=>b[1]-a[1]).slice(0,30);
-    const productAmt={};
-    purRows.forEach(r=>{
-      const amt=parseInt((r["승인금액"]||"0").replace(/,/g,""))||0;
-      parseProducts(r["상품명"]||"").forEach(p=>{productAmt[p]=(productAmt[p]||0)+amt;});
-    });
     document.querySelector("#top30table tbody").innerHTML=top30.map(([prod,cnt],i)=>`
       <tr><td class="rank ${i<3?'rank-'+(i+1):''}">${i+1}</td><td>${prod}</td><td><b>${cnt}</b>건</td></tr>
     `).join("");
