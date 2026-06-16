@@ -146,6 +146,21 @@
 const JOIN_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjMaqcQHHy-Si7uKHPqGfLnrvLSPNzqTWRYXf60bPqX6zjkSiGnVuWijN9moknW0pEfS/pub?gid=0&single=true&output=csv";
 const PUR_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjMaqcQHHy-Si7uKHPqGfLnrvLSPNzqTWRYXf60bPqX6zjkSiGnVuWijN9moknW0pEfS/pub?gid=1469334619&single=true&output=csv";
 
+// 콤마가 포함된 상품명 예외 처리
+const EXCEPTIONS = ["Come On, Every One"];
+function splitProducts(str) {
+  let s = str;
+  const saved = [];
+  EXCEPTIONS.forEach((ex, i) => {
+    if (s.includes(ex)) { s = s.replace(ex, `__EX${i}__`); saved.push(ex); }
+  });
+  return s.split(",").map(p => {
+    p = p.trim();
+    saved.forEach((ex, i) => { p = p.replace(`__EX${i}__`, ex); });
+    return p;
+  }).filter(Boolean);
+}
+
 const PALETTE = ["#4C6EF5","#F76707","#37B24D","#F59F00","#ae3ec9","#1098AD","#E3001B","#74C0FC","#63E6BE","#FFA94D","#DA77F2","#A9E34B"];
 
 function parseCSV(txt) {
