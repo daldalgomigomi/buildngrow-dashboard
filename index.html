@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>빌드앤그로우 대시보드</title>
-<link href="https://fonts.googleapis.com/css2?family=Nanum+Square+Neo:wght@400;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Square+Neo:wght@300;400;700;800;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -16,7 +17,7 @@
   header .period { font-size: 0.8rem; color: #999; background: #f4f4f4; padding: 4px 12px; border-radius: 20px; }
   .ver { font-size: 0.7rem; color: #ccc; margin-left: 8px; }
   .tabs { display: flex; background: #fff; border-bottom: 1px solid #e8e8e8; padding: 0 24px; }
-  .tab { padding: 13px 20px; cursor: pointer; font-size: 0.88rem; color: #999; border-bottom: 3px solid transparent; margin-bottom: -1px; transition: all .2s; font-weight: 700; }
+  .tab { padding: 13px 20px; cursor: pointer; font-size: 0.88rem; color: #999; border-bottom: 3px solid transparent; margin-bottom: -1px; transition: all .2s; font-weight: 700; white-space: nowrap; }
   .tab.active { color: #E3001B; border-bottom-color: #E3001B; }
   .tab:hover { color: #555; }
   .section { display: none; padding: 24px; max-width: 1200px; margin: 0 auto; }
@@ -28,23 +29,23 @@
   .kpi.green { border-top-color: #37B24D; }
   .kpi.orange { border-top-color: #F76707; }
   .kpi .label { font-size: 0.75rem; color: #999; margin-bottom: 8px; font-weight: 700; }
-  .kpi .val { font-size: 1.5rem; font-weight: 800; color: #2d2d2d; }
+  .kpi .val { font-size: 1.4rem; font-weight: 800; color: #2d2d2d; }
   .kpi .sub { font-size: 0.75rem; color: #bbb; margin-top: 4px; }
   .card { background: #fff; border-radius: 12px; padding: 22px; box-shadow: 0 1px 4px rgba(0,0,0,.06); margin-bottom: 20px; }
   .card h3 { font-size: 0.92rem; font-weight: 800; margin-bottom: 18px; color: #333; }
   .chart-wrap { position: relative; height: 280px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
-  th { background: #fafafa; padding: 10px 12px; text-align: left; color: #777; font-weight: 700; border-bottom: 2px solid #f0f0f0; }
+  th { background: #fafafa; padding: 10px 12px; text-align: left; color: #777; font-weight: 700; border-bottom: 2px solid #f0f0f0; white-space: nowrap; }
   td { padding: 9px 12px; border-bottom: 1px solid #f5f5f5; color: #333; }
   tr:hover td { background: #fafbff; }
-  .rank { font-weight: 800; color: #999; width: 36px; }
+  .rank { font-weight: 800; color: #999; width: 50px; white-space: nowrap; }
   .rank-1 { color: #E3001B; }
   .rank-2 { color: #F76707; }
   .rank-3 { color: #F59F00; }
   #loading { text-align: center; padding: 100px; color: #aaa; font-size: 0.95rem; }
   #error { text-align: center; padding: 60px; color: #E3001B; line-height: 1.8; }
-  @media(max-width:700px) { .grid2 { grid-template-columns: 1fr; } .kpi .val { font-size: 1.2rem; } header .title { display: none; } }
+  @media(max-width:700px) { .grid2 { grid-template-columns: 1fr; } .kpi .val { font-size: 1.1rem; } header .title { display: none; } }
 </style>
 </head>
 <body>
@@ -55,7 +56,7 @@
     <span id="logoText" style="display:none;font-weight:800;font-size:1.1rem;color:#E3001B">Build &amp; Grow</span>
     <div style="width:1px;height:24px;background:#eee"></div>
     <span class="title">회원 · 매출 대시보드</span>
-    <span class="ver">v6.1</span>
+    <span class="ver">v7</span>
   </div>
   <span class="period" id="period">로딩 중</span>
 </header>
@@ -66,7 +67,7 @@
 <div id="app" style="display:none">
   <div class="tabs">
     <div class="tab active" onclick="showTab(0)">📅 월별 가입자</div>
-    <div class="tab" onclick="showTab(1)">🛒 가입 vs 구매</div>
+    <div class="tab" onclick="showTab(1)">🛒 월별 구매자</div>
     <div class="tab" onclick="showTab(2)">📊 가입경로</div>
     <div class="tab" onclick="showTab(3)">💰 월별 매출</div>
     <div class="tab" onclick="showTab(4)">🏆 TOP 30 상품</div>
@@ -78,7 +79,7 @@
     <div class="card"><h3>월별 가입자 수</h3><div class="chart-wrap"><canvas id="chart0"></canvas></div></div>
   </div>
   <div class="section" id="tab1">
-    <div class="card"><h3>월별 가입자 수 vs 구매자 수</h3><div class="chart-wrap"><canvas id="chart1"></canvas></div></div>
+    <div class="card"><h3>월별 가입자 대비 구매자</h3><div class="chart-wrap"><canvas id="chart1"></canvas></div></div>
     <div class="card"><h3>월별 구매 전환율 (%)</h3><div class="chart-wrap"><canvas id="chart1b"></canvas></div></div>
   </div>
   <div class="section" id="tab2">
@@ -93,9 +94,9 @@
   </div>
   <div class="section" id="tab4">
     <div class="card">
-      <h3>가장 많이 팔린 상품 TOP 30 <small style="color:#bbb;font-weight:400;font-size:0.8rem">판매 건수 기준</small></h3>
+      <h3>가장 많이 팔린 상품 TOP 30 <small style="color:#bbb;font-weight:400;font-size:0.8rem">판매 수량 기준</small></h3>
       <table id="top30table">
-        <thead><tr><th>순위</th><th>상품명</th><th>판매수량</th></tr></thead>
+        <thead><tr><th style="width:50px">순위</th><th>상품명</th><th style="width:80px">판매수량</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -118,12 +119,29 @@
 </div>
 
 <script>
-// ── 상수 ────────────────────────────────────────────────────────
+Chart.register(ChartDataLabels);
+
+// 차트 전체 폰트 설정
+Chart.defaults.font.family = "'Nanum Square Neo', 'Malgun Gothic', sans-serif";
+Chart.defaults.font.size = 12;
+
 const JOIN_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjMaqcQHHy-Si7uKHPqGfLnrvLSPNzqTWRYXf60bPqX6zjkSiGnVuWijN9moknW0pEfS/pub?gid=0&single=true&output=csv";
 const PUR_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjMaqcQHHy-Si7uKHPqGfLnrvLSPNzqTWRYXf60bPqX6zjkSiGnVuWijN9moknW0pEfS/pub?gid=1469334619&single=true&output=csv";
 const PALETTE  = ["#4C6EF5","#F76707","#37B24D","#F59F00","#ae3ec9","#1098AD","#E3001B","#74C0FC","#63E6BE","#FFA94D","#DA77F2","#A9E34B"];
 
-// ── CSV 파싱 ────────────────────────────────────────────────────
+// 집계에서 제외할 상품
+const EXCLUDED = ["J&J 창문용 커튼"];
+
+// 이름 가운데 글자 * 처리
+function maskName(name) {
+  if (!name) return "";
+  const c = [...name];
+  if (c.length <= 1) return "*";
+  if (c.length === 2) return c[0] + "*";
+  const mid = Math.floor(c.length / 2);
+  return c.slice(0, mid).join("") + "*" + c.slice(mid + 1).join("");
+}
+
 function parseCSV(txt) {
   const r = Papa.parse(txt.trim(), { header: true, skipEmptyLines: true });
   return r.data.map(row => {
@@ -133,20 +151,15 @@ function parseCSV(txt) {
   });
 }
 
-// ── STEP 1: ": 부제목" 행을 바로 위 행과 합치기 ─────────────────
-// 예) "Speaking Stage Starter 1" + ": Short Conversations"
-//   → "Speaking Stage Starter 1 : Short Conversations"
+// STEP 1: ": 부제목" 행을 위 행 상품명과 합치기
 function mergeSubtitleRows(rows) {
   const result = [];
   for (const r of rows) {
     const prod = (r["상품명"] || "").trim();
     if (prod.startsWith(":") && result.length > 0) {
       const prev = result[result.length - 1];
-      // 상품명 합치기; 나머지 필드는 비어있으면 현재 행 값 사용
       const merged = { ...prev };
-      Object.keys(r).forEach(k => {
-        if (r[k] && !merged[k]) merged[k] = r[k];
-      });
+      Object.keys(r).forEach(k => { if (r[k] && !merged[k]) merged[k] = r[k]; });
       merged["상품명"] = prev["상품명"].trim() + " " + prod;
       result[result.length - 1] = merged;
     } else {
@@ -156,16 +169,13 @@ function mergeSubtitleRows(rows) {
   return result;
 }
 
-// ── STEP 2: 주문정보(아이디/날짜 등)를 같은 주문의 앞 행들에 채우기 ─
-// 주문정보는 각 주문의 마지막 행에만 있으므로 뒤에서부터 스캔
+// STEP 2: 주문 대표행(마지막 행)에서 앞 행들로 주문정보 채우기
 function preprocessOrders(rows) {
   const result = rows.map(r => ({ ...r }));
   let info = { 주문번호: "", 주문자: "", 아이디: "", 결제완료일: "" };
-
   for (let i = result.length - 1; i >= 0; i--) {
     const r = result[i];
     if (r["주문번호"] || r["결제완료일"]) {
-      // 이 행이 주문의 대표 행 → 주문정보 갱신
       info = {
         주문번호:   r["주문번호"]   || info.주문번호,
         주문자:     r["주문자"]     || info.주문자,
@@ -174,15 +184,12 @@ function preprocessOrders(rows) {
       };
       result[i]._isMain = true;
     } else {
-      // 주문정보 없는 행 → 뒤 주문에 귀속시키고 정보 채우기
-      // 결제금액은 전파하지 않음 (중복 합산 방지)
       result[i] = { ...r, ...info, _isMain: false };
     }
   }
   return result;
 }
 
-// ── 유틸 ────────────────────────────────────────────────────────
 function getMonth(d) {
   if (!d) return null;
   const m = d.match(/\d{4}[\.\-]\s*(\d{1,2})/);
@@ -193,7 +200,8 @@ let charts = {};
 function mkChart(id, type, data, options) {
   if (charts[id]) charts[id].destroy();
   charts[id] = new Chart(document.getElementById(id), {
-    type, data, options: { responsive: true, maintainAspectRatio: false, ...options }
+    type, data,
+    options: { responsive: true, maintainAspectRatio: false, ...options }
   });
 }
 function showTab(i) {
@@ -201,18 +209,24 @@ function showTab(i) {
   document.querySelectorAll('.section').forEach((s, j) => s.classList.toggle('active', i === j));
 }
 
-// ── 메인 ────────────────────────────────────────────────────────
+// 데이터 레이블 기본 설정 (bar)
+const DL_BAR = {
+  anchor: 'end', align: 'top',
+  font: { size: 10, weight: 'bold' },
+  color: '#555',
+  formatter: v => v > 0 ? v.toLocaleString() : null
+};
+const DL_OFF = { display: false };
+
 async function init() {
   try {
     const [joinRows, purRaw] = await Promise.all([
       fetch(JOIN_URL).then(r => r.text()).then(parseCSV),
       fetch(PUR_URL).then(r => r.text()).then(parseCSV)
     ]);
-
-    // 두 단계 전처리
     const purRows = preprocessOrders(mergeSubtitleRows(purRaw));
 
-    // ── 가입 집계
+    // 가입 집계
     const joinByMonth = {}, routeByMonth = {};
     joinRows.forEach(r => {
       const mo = getMonth(r["가입일"]); if (!mo) return;
@@ -222,33 +236,29 @@ async function init() {
       routeByMonth[mo][rt] = (routeByMonth[mo][rt] || 0) + 1;
     });
 
-    // ── 결제 집계
+    // 결제 집계
     const purByMonth = {}, purMemByMonth = {}, salesByMonth = {}, productCount = {}, memberPur = {};
-
     purRows.forEach(r => {
       const prod = (r["상품명"] || "").trim();
       const mo   = getMonth(r["결제완료일"]);
       const mid  = (r["아이디"] || "").trim();
       const amt  = parseInt((r["결제금액"] || "0").replace(/,/g, "")) || 0;
+      const qty  = parseInt((r["수량"] || "1").replace(/,/g, "")) || 1;
 
-      // TOP 30: 수량 기준 집계 (수량 없으면 1로 처리)
-      const qty = parseInt((r["수량"] || "1").replace(/,/g, "")) || 1;
-      if (prod) productCount[prod] = (productCount[prod] || 0) + qty;
+      // TOP 30: 수량 기준, 제외 상품 필터링
+      if (prod && !EXCLUDED.includes(prod)) {
+        productCount[prod] = (productCount[prod] || 0) + qty;
+      }
 
       if (!mo) return;
 
-      // 월별 매출/주문건수: 결제금액 있는 대표 행에서만
       if (r._isMain && amt > 0) {
         purByMonth[mo]   = (purByMonth[mo]   || 0) + 1;
         salesByMonth[mo] = (salesByMonth[mo] || 0) + amt;
       }
-
-      // 월별 unique 구매자
       if (mid) {
         if (!purMemByMonth[mo]) purMemByMonth[mo] = new Set();
         purMemByMonth[mo].add(mid);
-
-        // 재구매: 주문 단위 집계
         if (r._isMain && amt > 0) {
           if (!memberPur[mid]) memberPur[mid] = { count: 0, amount: 0, name: r["주문자"] || "" };
           memberPur[mid].count++;
@@ -263,56 +273,87 @@ async function init() {
     document.getElementById("period").textContent =
       `2026년 ${Math.min(...allMonths)}월 ~ ${Math.max(...allMonths)}월`;
 
-    // ── 탭0: 월별 가입자
+    // 탭0: 월별 가입자
     const totalJoin = Object.values(joinByMonth).reduce((a, b) => a + b, 0);
     const bestJoin  = Object.entries(joinByMonth).sort((a, b) => b[1] - a[1])[0];
     document.getElementById("kpi0").innerHTML = `
       <div class="kpi red"><div class="label">전체 가입자</div><div class="val">${totalJoin.toLocaleString()}명</div></div>
       <div class="kpi blue"><div class="label">월 평균 가입</div><div class="val">${Math.round(totalJoin / allMonths.length).toLocaleString()}명</div></div>
       <div class="kpi green"><div class="label">최다 가입월</div><div class="val">${bestJoin[0]}월</div><div class="sub">${bestJoin[1].toLocaleString()}명</div></div>`;
-    mkChart("chart0", "bar", { labels, datasets: [{ label: "가입자", data: allMonths.map(m => joinByMonth[m] || 0), backgroundColor: "#4C6EF5", borderRadius: 6 }] },
-      { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } });
+    mkChart("chart0", "bar",
+      { labels, datasets: [{ label: "가입자", data: allMonths.map(m => joinByMonth[m] || 0), backgroundColor: "#4C6EF5", borderRadius: 6 }] },
+      { layout: { padding: { top: 24 } }, plugins: { legend: { display: false }, datalabels: DL_BAR }, scales: { y: { beginAtZero: true } } });
 
-    // ── 탭1: 가입 vs 구매
+    // 탭1: 가입 vs 구매
     const joinArr   = allMonths.map(m => joinByMonth[m] || 0);
     const purMemArr = allMonths.map(m => purMemByMonth[m]?.size || 0);
     const rateArr   = allMonths.map((m, i) => joinArr[i] > 0 ? Math.round(purMemArr[i] / joinArr[i] * 100) : 0);
-    mkChart("chart1", "bar", { labels, datasets: [
-      { label: "가입자", data: joinArr,   backgroundColor: "#74C0FC", borderRadius: 4 },
-      { label: "구매자", data: purMemArr, backgroundColor: "#4C6EF5", borderRadius: 4 }
-    ]}, { scales: { y: { beginAtZero: true } } });
-    mkChart("chart1b", "line", { labels, datasets: [{ label: "전환율(%)", data: rateArr, borderColor: "#4C6EF5", backgroundColor: "rgba(76,110,245,0.1)", fill: true, tension: 0.4, pointRadius: 5 }] },
-      { scales: { y: { beginAtZero: true, max: 100 } } });
+    mkChart("chart1", "bar",
+      { labels, datasets: [
+        { label: "가입자", data: joinArr,   backgroundColor: "#74C0FC", borderRadius: 4 },
+        { label: "구매자", data: purMemArr, backgroundColor: "#4C6EF5", borderRadius: 4 }
+      ]},
+      { layout: { padding: { top: 24 } }, plugins: { datalabels: DL_BAR }, scales: { y: { beginAtZero: true } } });
+    mkChart("chart1b", "line",
+      { labels, datasets: [{ label: "전환율(%)", data: rateArr, borderColor: "#4C6EF5", backgroundColor: "rgba(76,110,245,0.1)", fill: true, tension: 0.4, pointRadius: 5 }] },
+      { layout: { padding: { top: 24 } },
+        plugins: { datalabels: { align: 'top', offset: 4, font: { size: 10, weight: 'bold' }, color: '#4C6EF5', formatter: v => v + "%" } },
+        scales: { y: { beginAtZero: true, max: 100 } } });
 
-    // ── 탭2: 가입경로
+    // 탭2: 가입경로
     const allRoutes = [...new Set(joinRows.map(r => r["가입경로"] || "기타"))];
     const routeTotals = {};
     allRoutes.forEach(rt => { routeTotals[rt] = joinRows.filter(r => (r["가입경로"] || "기타") === rt).length; });
-    mkChart("chart2a", "doughnut", { labels: Object.keys(routeTotals), datasets: [{ data: Object.values(routeTotals), backgroundColor: PALETTE, borderWidth: 2, borderColor: "#fff" }] },
-      { plugins: { legend: { position: "bottom" } } });
-    mkChart("chart2b", "bar", { labels, datasets: allRoutes.map((rt, i) => ({
-      label: rt, data: allMonths.map(m => (routeByMonth[m] || {})[rt] || 0), backgroundColor: PALETTE[i % PALETTE.length], borderRadius: 3
-    }))}, { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } });
+    mkChart("chart2a", "doughnut",
+      { labels: Object.keys(routeTotals), datasets: [{ data: Object.values(routeTotals), backgroundColor: PALETTE, borderWidth: 2, borderColor: "#fff" }] },
+      { plugins: {
+          legend: { position: "bottom" },
+          datalabels: {
+            font: { size: 11, weight: 'bold' }, color: '#fff',
+            formatter: (v, ctx) => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = Math.round(v / total * 100);
+              return pct >= 5 ? pct + "%" : null;
+            }
+          }
+        }
+      });
+    mkChart("chart2b", "bar",
+      { labels, datasets: allRoutes.map((rt, i) => ({
+        label: rt, data: allMonths.map(m => (routeByMonth[m] || {})[rt] || 0),
+        backgroundColor: PALETTE[i % PALETTE.length], borderRadius: 3
+      }))},
+      { plugins: { datalabels: DL_OFF }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } });
 
-    // ── 탭3: 월별 매출
+    // 탭3: 월별 매출
     const totalSales = Object.values(salesByMonth).reduce((a, b) => a + b, 0);
     const totalPur   = Object.values(purByMonth).reduce((a, b) => a + b, 0);
     const bestSale   = Object.entries(salesByMonth).sort((a, b) => b[1] - a[1])[0];
     document.getElementById("kpi3").innerHTML = `
-      <div class="kpi red"><div class="label">전체 결제금액</div><div class="val">${(totalSales / 10000).toLocaleString()}만원</div></div>
+      <div class="kpi red"><div class="label">전체 결제금액</div><div class="val">${totalSales.toLocaleString()}원</div></div>
       <div class="kpi blue"><div class="label">주문 건수</div><div class="val">${totalPur.toLocaleString()}건</div></div>
       <div class="kpi green"><div class="label">건당 평균</div><div class="val">${Math.round(totalSales / totalPur).toLocaleString()}원</div></div>
-      <div class="kpi orange"><div class="label">최다 매출월</div><div class="val">${bestSale[0]}월</div><div class="sub">${(bestSale[1] / 10000).toFixed(0)}만원</div></div>`;
-    mkChart("chart3", "bar", { labels, datasets: [{ label: "결제금액", data: allMonths.map(m => salesByMonth[m] || 0), backgroundColor: "#37B24D", borderRadius: 6 }] },
-      { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => v >= 10000 ? (v / 10000).toFixed(0) + "만" : v } } } });
+      <div class="kpi orange"><div class="label">최다 매출월</div><div class="val">${bestSale[0]}월</div><div class="sub">${bestSale[1].toLocaleString()}원</div></div>`;
+    mkChart("chart3", "bar",
+      { labels, datasets: [{ label: "결제금액", data: allMonths.map(m => salesByMonth[m] || 0), backgroundColor: "#37B24D", borderRadius: 6 }] },
+      { layout: { padding: { top: 30 } },
+        plugins: {
+          legend: { display: false },
+          datalabels: {
+            anchor: 'end', align: 'top', font: { size: 9, weight: 'bold' }, color: '#555',
+            formatter: v => v > 0 ? v.toLocaleString() + "원" : null
+          }
+        },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString() + "원" } } }
+      });
 
-    // ── 탭4: TOP 30 상품
+    // 탭4: TOP 30 상품
     const top30 = Object.entries(productCount).sort((a, b) => b[1] - a[1]).slice(0, 30);
     document.querySelector("#top30table tbody").innerHTML = top30.map(([prod, cnt], i) => `
-      <tr><td class="rank ${i < 3 ? 'rank-' + (i + 1) : ''}">${i + 1}</td><td>${prod}</td><td><b>${cnt}</b>건</td></tr>
+      <tr><td class="rank ${i < 3 ? 'rank-' + (i + 1) : ''}">${i + 1}</td><td>${prod}</td><td><b>${cnt}</b>개</td></tr>
     `).join("");
 
-    // ── 탭5: 재구매
+    // 탭5: 재구매
     const repeatMembers = Object.entries(memberPur).filter(([, v]) => v.count >= 2).sort((a, b) => b[1].count - a[1].count);
     const onceMembers   = Object.entries(memberPur).filter(([, v]) => v.count === 1);
     const countDist = {};
@@ -323,10 +364,12 @@ async function init() {
       <div class="kpi green"><div class="label">1회 구매 회원</div><div class="val">${onceMembers.length.toLocaleString()}명</div></div>
       <div class="kpi orange"><div class="label">최다 구매 횟수</div><div class="val">${Math.max(...Object.values(memberPur).map(v => v.count))}회</div></div>`;
     const distLabels = Object.keys(countDist).map(Number).sort((a, b) => a - b);
-    mkChart("chart5", "bar", { labels: distLabels.map(n => n + "회"), datasets: [{ label: "회원 수", data: distLabels.map(n => countDist[n]), backgroundColor: "#F76707", borderRadius: 6 }] },
-      { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } });
+    mkChart("chart5", "bar",
+      { labels: distLabels.map(n => n + "회"), datasets: [{ label: "회원 수", data: distLabels.map(n => countDist[n]), backgroundColor: "#F76707", borderRadius: 6 }] },
+      { layout: { padding: { top: 24 } }, plugins: { legend: { display: false }, datalabels: DL_BAR }, scales: { y: { beginAtZero: true } } });
+
     document.querySelector("#repeatTable tbody").innerHTML = repeatMembers.map(([mid, v]) => `
-      <tr><td><b>${v.count}회</b></td><td>${mid}</td><td>${v.name}</td><td>${v.amount.toLocaleString()}원</td></tr>
+      <tr><td><b>${v.count}회</b></td><td>${mid}</td><td>${maskName(v.name)}</td><td>${v.amount.toLocaleString()}원</td></tr>
     `).join("");
 
     document.getElementById("loading").style.display = "none";
