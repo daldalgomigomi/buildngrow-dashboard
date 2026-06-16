@@ -116,7 +116,7 @@
     <div class="card">
       <h3>가장 많이 팔린 상품 TOP 30 <small style="color:#bbb;font-weight:400;font-size:0.8rem">판매 건수 기준</small></h3>
       <table id="top30table">
-        <thead><tr><th>순위</th><th>상품명</th><th>판매수</th><th>총 승인금액</th></tr></thead>
+        <thead><tr><th>순위</th><th>상품명</th><th>판매수</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -281,7 +281,7 @@ async function init() {
       parseProducts(r["상품명"]||"").forEach(p=>{productAmt[p]=(productAmt[p]||0)+amt;});
     });
     document.querySelector("#top30table tbody").innerHTML=top30.map(([prod,cnt],i)=>`
-      <tr><td class="rank ${i<3?'rank-'+(i+1):''}">${i+1}</td><td>${prod}</td><td><b>${cnt}</b>건</td><td>${(productAmt[prod]||0).toLocaleString()}원</td></tr>
+      <tr><td class="rank ${i<3?'rank-'+(i+1):''}">${i+1}</td><td>${prod}</td><td><b>${cnt}</b>건</td></tr>
     `).join("");
 
     // 탭5
