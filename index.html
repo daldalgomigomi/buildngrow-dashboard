@@ -6,6 +6,7 @@
 <title>빌드앤그로우 대시보드</title>
 <link href="https://fonts.googleapis.com/css2?family=Nanum+Square+Neo:wght@400;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Nanum Square Neo', 'Malgun Gothic', sans-serif; background: #f5f6fa; color: #2d2d2d; }
@@ -149,18 +150,10 @@ const PUR_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjM
 const PALETTE = ["#4C6EF5","#F76707","#37B24D","#F59F00","#ae3ec9","#1098AD","#E3001B","#74C0FC","#63E6BE","#FFA94D","#DA77F2","#A9E34B"];
 
 function parseCSV(txt) {
-  const lines = txt.trim().split("\n");
-  const headers = lines[0].split(",").map(h => h.trim().replace(/"/g,""));
-  return lines.slice(1).map(line => {
-    const cols = []; let cur = "", inQ = false;
-    for (let c of line) {
-      if (c==='"') inQ=!inQ;
-      else if (c===','&&!inQ){cols.push(cur.trim());cur="";}
-      else cur+=c;
-    }
-    cols.push(cur.trim());
-    const obj={};
-    headers.forEach((h,i)=>obj[h]=(cols[i]||"").replace(/"/g,""));
+  const result = Papa.parse(txt.trim(), { header: true, skipEmptyLines: true });
+  return result.data.map(row => {
+    const obj = {};
+    Object.keys(row).forEach(k => obj[k.trim()] = (row[k]||"").trim());
     return obj;
   });
 }
