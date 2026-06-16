@@ -143,23 +143,23 @@
 </div>
 
 <script>
+function parseProducts(str) {
+  const raw = str.split(",").map(p=>p.trim()).filter(Boolean);
+  const result = [];
+  for (let i = 0; i < raw.length; i++) {
+    const cur = raw[i];
+    // 다음 토큰이 소문자로 시작하면 현재 토큰과 합치기 (Come on, everyone 케이스)
+    if (i+1 < raw.length && /^[a-z]/.test(raw[i+1])) {
+      result.push(cur + ", " + raw[++i]);
+    } else {
+      result.push(cur);
+    }
+  }
+  return result;
+}
+
 const JOIN_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjMaqcQHHy-Si7uKHPqGfLnrvLSPNzqTWRYXf60bPqX6zjkSiGnVuWijN9moknW0pEfS/pub?gid=0&single=true&output=csv";
 const PUR_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjMaqcQHHy-Si7uKHPqGfLnrvLSPNzqTWRYXf60bPqX6zjkSiGnVuWijN9moknW0pEfS/pub?gid=1469334619&single=true&output=csv";
-
-// 콤마가 포함된 상품명 예외 처리
-const EXCEPTIONS = ["Come On, Every One"];
-function splitProducts(str) {
-  let s = str;
-  const saved = [];
-  EXCEPTIONS.forEach((ex, i) => {
-    if (s.includes(ex)) { s = s.replace(ex, `__EX${i}__`); saved.push(ex); }
-  });
-  return s.split(",").map(p => {
-    p = p.trim();
-    saved.forEach((ex, i) => { p = p.replace(`__EX${i}__`, ex); });
-    return p;
-  }).filter(Boolean);
-}
 
 const PALETTE = ["#4C6EF5","#F76707","#37B24D","#F59F00","#ae3ec9","#1098AD","#E3001B","#74C0FC","#63E6BE","#FFA94D","#DA77F2","#A9E34B"];
 
@@ -222,7 +222,7 @@ async function init() {
         if(!memberPur[mid]) memberPur[mid]={count:0,amount:0,name:r["이름"]||""};
         memberPur[mid].count++; memberPur[mid].amount+=amt;
       }
-      (r["상품명"]||"").split(",").map(p=>p.trim()).filter(Boolean).forEach(p=>{
+      parseProducts(r["상품명"]||"").forEach(p=>{
         productCount[p]=(productCount[p]||0)+1;
       });
     });
@@ -278,7 +278,7 @@ async function init() {
     const productAmt={};
     purRows.forEach(r=>{
       const amt=parseInt((r["승인금액"]||"0").replace(/,/g,""))||0;
-      (r["상품명"]||"").split(",").map(p=>p.trim()).filter(Boolean).forEach(p=>{productAmt[p]=(productAmt[p]||0)+amt;});
+      parseProducts(r["상품명"]||"").forEach(p=>{productAmt[p]=(productAmt[p]||0)+amt;});
     });
     document.querySelector("#top30table tbody").innerHTML=top30.map(([prod,cnt],i)=>`
       <tr><td class="rank ${i<3?'rank-'+(i+1):''}">${i+1}</td><td>${prod}</td><td><b>${cnt}</b>건</td><td>${(productAmt[prod]||0).toLocaleString()}원</td></tr>
