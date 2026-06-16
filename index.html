@@ -87,7 +87,7 @@
   </div>
   <div class="section" id="tab3">
     <div class="kpi-row" id="kpi3"></div>
-    <div class="card"><h3>월별 승인금액 (실매출)</h3><div class="chart-wrap"><canvas id="chart3"></canvas></div></div>
+    <div class="card"><h3>월별 결제금액</h3><div class="chart-wrap"><canvas id="chart3"></canvas></div></div>
   </div>
   <div class="section" id="tab4">
     <div class="card">
@@ -106,7 +106,7 @@
         <h3>다회 구매 회원 (2회 이상)</h3>
         <div style="max-height:320px;overflow-y:auto">
           <table id="repeatTable">
-            <thead><tr><th>구매횟수</th><th>회원ID</th><th>이름</th><th>총 승인금액</th></tr></thead>
+            <thead><tr><th>구매횟수</th><th>아이디</th><th>이름</th><th>총 결제금액</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -120,7 +120,6 @@ const JOIN_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjM
 const PUR_URL  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTXcmE_qakJLjMaqcQHHy-Si7uKHPqGfLnrvLSPNzqTWRYXf60bPqX6zjkSiGnVuWijN9moknW0pEfS/pub?gid=1469334619&single=true&output=csv";
 const PALETTE  = ["#4C6EF5","#F76707","#37B24D","#F59F00","#ae3ec9","#1098AD","#E3001B","#74C0FC","#63E6BE","#FFA94D","#DA77F2","#A9E34B"];
 
-// PapaParse로 CSV 파싱 (큰따옴표 처리 완벽하게)
 function parseCSV(txt) {
   const r = Papa.parse(txt.trim(), { header: true, skipEmptyLines: true });
   return r.data.map(row => {
@@ -130,28 +129,36 @@ function parseCSV(txt) {
   });
 }
 
-// 콤마가 포함된 상품명 처리
-// 단독 토큰으로 끝나면 안 되는 패턴들:
-// - "Come On"       → Come On, Everyone X / Come On, Phonics X 등
-// - "Everyone"      → Everyone, Speak! X 등
-function parseProducts(str) {
-  if (!str) return [];
-  const raw = str.split(",").map(p => p.trim()).filter(Boolean);
-  const result = [];
-  for (let i = 0; i < raw.length; i++) {
-    let cur = raw[i];
-    while (
-      (/^come\s+on$/i.test(cur) || /^everyone$/i.test(cur))
-      && i + 1 < raw.length
-    ) {
-      cur = cur + ", " + raw[++i];
+// 신규 데이터 구조:
+// - 한 행 = 한 상품
+// - 주문번호/주문자/아이디/결제금액/결제완료일은 각 주문의 마지막 행에만 존재
+// → 뒤에서부터 읽어 앞 행들에 주문정보 채우기
+function preprocessOrders(rows) {
+  const result = [...rows];
+  let lastInfo = { 주문번호:"", 주문자:"", 아이디:"", 결제금액:"", 결제완료일:"" };
+
+  for (let i = result.length - 1; i >= 0; i--) {
+    const r = result[i];
+    const hasOrder = r["주문번호"] || r["결제완료일"];
+    if (hasOrder) {
+      lastInfo = {
+        주문번호: r["주문번호"] || lastInfo.주문번호,
+        주문자:   r["주문자"]   || lastInfo.주문자,
+        아이디:   r["아이디"]   || lastInfo.아이디,
+        결제금액: r["결제금액"] || lastInfo.결제금액,
+        결제완료일: r["결제완료일"] || lastInfo.결제완료일,
+      };
+      result[i] = { ...r, _isMain: true };
+    } else {
+      // 주문정보 없는 행 → 뒤에 있는 주문에 귀속
+      result[i] = { ...r, ...lastInfo, _isMain: false };
     }
-    result.push(cur);
   }
   return result;
 }
 
 function getMonth(d) {
+  if (!d) return null;
   const m = d.match(/\d{4}[\.\-]\s*(\d{1,2})/);
   return m ? parseInt(m[1]) : null;
 }
@@ -163,20 +170,20 @@ function mkChart(id, type, data, options) {
     type, data, options: { responsive: true, maintainAspectRatio: false, ...options }
   });
 }
-
 function showTab(i) {
-  document.querySelectorAll('.tab').forEach((t, j) => t.classList.toggle('active', i === j));
-  document.querySelectorAll('.section').forEach((s, j) => s.classList.toggle('active', i === j));
+  document.querySelectorAll('.tab').forEach((t,j) => t.classList.toggle('active', i===j));
+  document.querySelectorAll('.section').forEach((s,j) => s.classList.toggle('active', i===j));
 }
 
 async function init() {
   try {
-    const [joinRows, purRows] = await Promise.all([
+    const [joinRows, purRaw] = await Promise.all([
       fetch(JOIN_URL).then(r => r.text()).then(parseCSV),
       fetch(PUR_URL).then(r => r.text()).then(parseCSV)
     ]);
+    const purRows = preprocessOrders(purRaw);
 
-    // 가입 집계
+    // ── 가입 집계 ──────────────────────────────
     const joinByMonth = {}, routeByMonth = {};
     joinRows.forEach(r => {
       const mo = getMonth(r["가입일"]); if (!mo) return;
@@ -186,112 +193,121 @@ async function init() {
       routeByMonth[mo][rt] = (routeByMonth[mo][rt] || 0) + 1;
     });
 
-    // 결제 집계
+    // ── 결제 집계 ──────────────────────────────
     const purByMonth = {}, purMemByMonth = {}, salesByMonth = {}, productCount = {}, memberPur = {};
+
     purRows.forEach(r => {
-      const mo = getMonth(r["결제일"]); if (!mo) return;
-      const mid = r["회원ID"] || "";
-      const amt = parseInt((r["승인금액"] || "0").replace(/,/g, "")) || 0;
+      const prod = (r["상품명"] || "").trim();
+      const mo   = getMonth(r["결제완료일"]);
+      const mid  = (r["아이디"] || "").trim();
+      const amt  = parseInt((r["결제금액"] || "0").replace(/,/g, "")) || 0;
 
-      purByMonth[mo] = (purByMonth[mo] || 0) + 1;
-      salesByMonth[mo] = (salesByMonth[mo] || 0) + amt;
+      // TOP 30: 날짜 무관 모든 행 집계
+      if (prod) productCount[prod] = (productCount[prod] || 0) + 1;
 
+      if (!mo) return;
+
+      // 월별 매출 & 주문 건수: 메인 행(결제금액 있는 행)에서만
+      if (r._isMain && amt > 0) {
+        purByMonth[mo]  = (purByMonth[mo]  || 0) + 1;
+        salesByMonth[mo] = (salesByMonth[mo] || 0) + amt;
+      }
+
+      // 월별 구매자 (unique 아이디)
       if (mid) {
         if (!purMemByMonth[mo]) purMemByMonth[mo] = new Set();
         purMemByMonth[mo].add(mid);
-        if (!memberPur[mid]) memberPur[mid] = { count: 0, amount: 0, name: r["이름"] || "" };
-        memberPur[mid].count++;
-        memberPur[mid].amount += amt;
-      }
 
-      // 상품 집계 (콤마 포함 상품명 처리)
-      parseProducts(r["상품명"]).forEach(p => {
-        productCount[p] = (productCount[p] || 0) + 1;
-      });
+        // 재구매: 주문 단위로 집계
+        if (r._isMain && amt > 0) {
+          if (!memberPur[mid]) memberPur[mid] = { count: 0, amount: 0, name: r["주문자"] || "" };
+          memberPur[mid].count++;
+          memberPur[mid].amount += amt;
+        }
+      }
     });
 
     const allMonths = [...new Set([...Object.keys(joinByMonth), ...Object.keys(salesByMonth)])]
-      .map(Number).sort((a, b) => a - b);
+      .map(Number).sort((a,b) => a-b);
     const labels = allMonths.map(m => m + "월");
     document.getElementById("period").textContent =
       `2026년 ${Math.min(...allMonths)}월 ~ ${Math.max(...allMonths)}월`;
 
-    // 탭0: 월별 가입자
-    const totalJoin = Object.values(joinByMonth).reduce((a, b) => a + b, 0);
-    const bestJoin = Object.entries(joinByMonth).sort((a, b) => b[1] - a[1])[0];
+    // ── 탭0: 월별 가입자 ───────────────────────
+    const totalJoin = Object.values(joinByMonth).reduce((a,b) => a+b, 0);
+    const bestJoin  = Object.entries(joinByMonth).sort((a,b) => b[1]-a[1])[0];
     document.getElementById("kpi0").innerHTML = `
       <div class="kpi red"><div class="label">전체 가입자</div><div class="val">${totalJoin.toLocaleString()}명</div></div>
-      <div class="kpi blue"><div class="label">월 평균 가입</div><div class="val">${Math.round(totalJoin / allMonths.length).toLocaleString()}명</div></div>
+      <div class="kpi blue"><div class="label">월 평균 가입</div><div class="val">${Math.round(totalJoin/allMonths.length).toLocaleString()}명</div></div>
       <div class="kpi green"><div class="label">최다 가입월</div><div class="val">${bestJoin[0]}월</div><div class="sub">${bestJoin[1].toLocaleString()}명</div></div>`;
-    mkChart("chart0", "bar", { labels, datasets: [{ label: "가입자", data: allMonths.map(m => joinByMonth[m] || 0), backgroundColor: "#4C6EF5", borderRadius: 6 }] },
-      { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } });
+    mkChart("chart0","bar",{labels,datasets:[{label:"가입자",data:allMonths.map(m=>joinByMonth[m]||0),backgroundColor:"#4C6EF5",borderRadius:6}]},
+      {plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}});
 
-    // 탭1: 가입 vs 구매
-    const joinArr = allMonths.map(m => joinByMonth[m] || 0);
-    const purMemArr = allMonths.map(m => purMemByMonth[m]?.size || 0);
-    const rateArr = allMonths.map((m, i) => joinArr[i] > 0 ? Math.round(purMemArr[i] / joinArr[i] * 100) : 0);
-    mkChart("chart1", "bar", { labels, datasets: [
-      { label: "가입자", data: joinArr, backgroundColor: "#74C0FC", borderRadius: 4 },
-      { label: "구매자", data: purMemArr, backgroundColor: "#4C6EF5", borderRadius: 4 }
-    ]}, { scales: { y: { beginAtZero: true } } });
-    mkChart("chart1b", "line", { labels, datasets: [{ label: "전환율(%)", data: rateArr, borderColor: "#4C6EF5", backgroundColor: "rgba(76,110,245,0.1)", fill: true, tension: 0.4, pointRadius: 5 }] },
-      { scales: { y: { beginAtZero: true, max: 100 } } });
+    // ── 탭1: 가입 vs 구매 ─────────────────────
+    const joinArr   = allMonths.map(m => joinByMonth[m]||0);
+    const purMemArr = allMonths.map(m => purMemByMonth[m]?.size||0);
+    const rateArr   = allMonths.map((m,i) => joinArr[i]>0 ? Math.round(purMemArr[i]/joinArr[i]*100) : 0);
+    mkChart("chart1","bar",{labels,datasets:[
+      {label:"가입자",data:joinArr,backgroundColor:"#74C0FC",borderRadius:4},
+      {label:"구매자",data:purMemArr,backgroundColor:"#4C6EF5",borderRadius:4}
+    ]},{scales:{y:{beginAtZero:true}}});
+    mkChart("chart1b","line",{labels,datasets:[{label:"전환율(%)",data:rateArr,borderColor:"#4C6EF5",backgroundColor:"rgba(76,110,245,0.1)",fill:true,tension:0.4,pointRadius:5}]},
+      {scales:{y:{beginAtZero:true,max:100}}});
 
-    // 탭2: 가입경로
-    const allRoutes = [...new Set(joinRows.map(r => r["가입경로"] || "기타"))];
+    // ── 탭2: 가입경로 ─────────────────────────
+    const allRoutes = [...new Set(joinRows.map(r => r["가입경로"]||"기타"))];
     const routeTotals = {};
-    allRoutes.forEach(rt => { routeTotals[rt] = joinRows.filter(r => (r["가입경로"] || "기타") === rt).length; });
-    mkChart("chart2a", "doughnut", { labels: Object.keys(routeTotals), datasets: [{ data: Object.values(routeTotals), backgroundColor: PALETTE, borderWidth: 2, borderColor: "#fff" }] },
-      { plugins: { legend: { position: "bottom" } } });
-    mkChart("chart2b", "bar", { labels, datasets: allRoutes.map((rt, i) => ({
-      label: rt, data: allMonths.map(m => (routeByMonth[m] || {})[rt] || 0), backgroundColor: PALETTE[i % PALETTE.length], borderRadius: 3
-    }))}, { scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } });
+    allRoutes.forEach(rt => { routeTotals[rt] = joinRows.filter(r=>(r["가입경로"]||"기타")===rt).length; });
+    mkChart("chart2a","doughnut",{labels:Object.keys(routeTotals),datasets:[{data:Object.values(routeTotals),backgroundColor:PALETTE,borderWidth:2,borderColor:"#fff"}]},
+      {plugins:{legend:{position:"bottom"}}});
+    mkChart("chart2b","bar",{labels,datasets:allRoutes.map((rt,i)=>({
+      label:rt,data:allMonths.map(m=>(routeByMonth[m]||{})[rt]||0),backgroundColor:PALETTE[i%PALETTE.length],borderRadius:3
+    }))},{scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}});
 
-    // 탭3: 월별 매출
-    const totalSales = Object.values(salesByMonth).reduce((a, b) => a + b, 0);
-    const totalPur = Object.values(purByMonth).reduce((a, b) => a + b, 0);
-    const bestSale = Object.entries(salesByMonth).sort((a, b) => b[1] - a[1])[0];
+    // ── 탭3: 월별 매출 ────────────────────────
+    const totalSales = Object.values(salesByMonth).reduce((a,b)=>a+b,0);
+    const totalPur   = Object.values(purByMonth).reduce((a,b)=>a+b,0);
+    const bestSale   = Object.entries(salesByMonth).sort((a,b)=>b[1]-a[1])[0];
     document.getElementById("kpi3").innerHTML = `
-      <div class="kpi red"><div class="label">전체 승인금액</div><div class="val">${(totalSales / 10000).toLocaleString()}만원</div></div>
-      <div class="kpi blue"><div class="label">결제 건수</div><div class="val">${totalPur.toLocaleString()}건</div></div>
-      <div class="kpi green"><div class="label">건당 평균</div><div class="val">${Math.round(totalSales / totalPur).toLocaleString()}원</div></div>
-      <div class="kpi orange"><div class="label">최다 매출월</div><div class="val">${bestSale[0]}월</div><div class="sub">${(bestSale[1] / 10000).toFixed(0)}만원</div></div>`;
-    mkChart("chart3", "bar", { labels, datasets: [{ label: "승인금액", data: allMonths.map(m => salesByMonth[m] || 0), backgroundColor: "#37B24D", borderRadius: 6 }] },
-      { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: v => v >= 10000 ? (v / 10000).toFixed(0) + "만" : v } } } });
+      <div class="kpi red"><div class="label">전체 결제금액</div><div class="val">${(totalSales/10000).toLocaleString()}만원</div></div>
+      <div class="kpi blue"><div class="label">주문 건수</div><div class="val">${totalPur.toLocaleString()}건</div></div>
+      <div class="kpi green"><div class="label">건당 평균</div><div class="val">${Math.round(totalSales/totalPur).toLocaleString()}원</div></div>
+      <div class="kpi orange"><div class="label">최다 매출월</div><div class="val">${bestSale[0]}월</div><div class="sub">${(bestSale[1]/10000).toFixed(0)}만원</div></div>`;
+    mkChart("chart3","bar",{labels,datasets:[{label:"결제금액",data:allMonths.map(m=>salesByMonth[m]||0),backgroundColor:"#37B24D",borderRadius:6}]},
+      {plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>v>=10000?(v/10000).toFixed(0)+"만":v}}}});
 
-    // 탭4: TOP 30 상품
-    const top30 = Object.entries(productCount).sort((a, b) => b[1] - a[1]).slice(0, 30);
-    document.querySelector("#top30table tbody").innerHTML = top30.map(([prod, cnt], i) => `
-      <tr><td class="rank ${i < 3 ? 'rank-' + (i + 1) : ''}">${i + 1}</td><td>${prod}</td><td><b>${cnt}</b>건</td></tr>
+    // ── 탭4: TOP 30 상품 ──────────────────────
+    const top30 = Object.entries(productCount).sort((a,b)=>b[1]-a[1]).slice(0,30);
+    document.querySelector("#top30table tbody").innerHTML = top30.map(([prod,cnt],i) => `
+      <tr><td class="rank ${i<3?'rank-'+(i+1):''}">${i+1}</td><td>${prod}</td><td><b>${cnt}</b>건</td></tr>
     `).join("");
 
-    // 탭5: 재구매
-    const repeatMembers = Object.entries(memberPur).filter(([, v]) => v.count >= 2).sort((a, b) => b[1].count - a[1].count);
-    const onceMembers = Object.entries(memberPur).filter(([, v]) => v.count === 1);
+    // ── 탭5: 재구매 ──────────────────────────
+    const repeatMembers = Object.entries(memberPur).filter(([,v])=>v.count>=2).sort((a,b)=>b[1].count-a[1].count);
+    const onceMembers   = Object.entries(memberPur).filter(([,v])=>v.count===1);
     const countDist = {};
-    Object.values(memberPur).forEach(v => { countDist[v.count] = (countDist[v.count] || 0) + 1; });
+    Object.values(memberPur).forEach(v => { countDist[v.count] = (countDist[v.count]||0)+1; });
     document.getElementById("kpi5").innerHTML = `
       <div class="kpi blue"><div class="label">전체 구매 회원</div><div class="val">${Object.keys(memberPur).length.toLocaleString()}명</div></div>
       <div class="kpi red"><div class="label">재구매 회원 (2회↑)</div><div class="val">${repeatMembers.length.toLocaleString()}명</div></div>
       <div class="kpi green"><div class="label">1회 구매 회원</div><div class="val">${onceMembers.length.toLocaleString()}명</div></div>
-      <div class="kpi orange"><div class="label">최다 구매 횟수</div><div class="val">${Math.max(...Object.values(memberPur).map(v => v.count))}회</div></div>`;
-    const distLabels = Object.keys(countDist).map(Number).sort((a, b) => a - b);
-    mkChart("chart5", "bar", { labels: distLabels.map(n => n + "회"), datasets: [{ label: "회원 수", data: distLabels.map(n => countDist[n]), backgroundColor: "#F76707", borderRadius: 6 }] },
-      { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } });
-    document.querySelector("#repeatTable tbody").innerHTML = repeatMembers.map(([mid, v]) => `
+      <div class="kpi orange"><div class="label">최다 구매 횟수</div><div class="val">${Math.max(...Object.values(memberPur).map(v=>v.count))}회</div></div>`;
+    const distLabels = Object.keys(countDist).map(Number).sort((a,b)=>a-b);
+    mkChart("chart5","bar",{labels:distLabels.map(n=>n+"회"),datasets:[{label:"회원 수",data:distLabels.map(n=>countDist[n]),backgroundColor:"#F76707",borderRadius:6}]},
+      {plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}});
+    document.querySelector("#repeatTable tbody").innerHTML = repeatMembers.map(([mid,v]) => `
       <tr><td><b>${v.count}회</b></td><td>${mid}</td><td>${v.name}</td><td>${v.amount.toLocaleString()}원</td></tr>
     `).join("");
 
     document.getElementById("loading").style.display = "none";
     document.getElementById("app").style.display = "block";
 
-  } catch (e) {
+  } catch(e) {
     document.getElementById("loading").style.display = "none";
     document.getElementById("error").style.display = "block";
     document.getElementById("error").innerHTML = `⚠️ 오류: ${e.message}<br><small>Google Sheets 웹 게시 설정을 확인해주세요.</small>`;
   }
 }
-
 init();
 </script>
 </body>
