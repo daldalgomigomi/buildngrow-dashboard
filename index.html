@@ -147,13 +147,13 @@ function parseProducts(str) {
   const raw = str.split(",").map(p=>p.trim()).filter(Boolean);
   const result = [];
   for (let i = 0; i < raw.length; i++) {
-    const cur = raw[i];
-    if (/come\s+on$/i.test(cur) && i+1 < raw.length) {
-      // Come On 뒤에 오는 단어는 무조건 한 상품으로 합치기
-      result.push(cur + ", " + raw[++i]);
-    } else {
-      result.push(cur);
+    let cur = raw[i];
+    // "Come On"으로 끝나면 → 다음 토큰(Everyone 1WB 등)과 합치기
+    // 합친 결과도 또 "Come On"이면 계속 합치기 (연속 시리즈 대비)
+    while (/come\s+on$/i.test(cur) && i+1 < raw.length) {
+      cur = cur + ", " + raw[++i];
     }
+    result.push(cur);
   }
   return result;
 }
