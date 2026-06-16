@@ -148,8 +148,8 @@ function parseProducts(str) {
   const result = [];
   for (let i = 0; i < raw.length; i++) {
     const cur = raw[i];
-    // 다음 토큰이 소문자로 시작하면 현재 토큰과 합치기 (Come on, everyone 케이스)
-    if (i+1 < raw.length && /^[a-z]/.test(raw[i+1])) {
+    if (/come\s+on$/i.test(cur) && i+1 < raw.length) {
+      // Come On 뒤에 오는 단어는 무조건 한 상품으로 합치기
       result.push(cur + ", " + raw[++i]);
     } else {
       result.push(cur);
